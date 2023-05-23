@@ -9,9 +9,16 @@ packages = [{include = "compact_multigrid"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-gymnasium = ">=0.26"
+gymnasium = ">=0.27"
 matplotlib = "^3.7.1"
+jax = {extras = ["cuda12-pip"], version = "^0.4.10"}
 
+
+[[tool.poetry.source]]
+name = "jax"
+url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
+default = false
+secondary = false
 
 [build-system]
 requires = ["poetry-core"]
