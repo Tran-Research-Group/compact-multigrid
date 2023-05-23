@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "compact-multigrid"
+version = "0.1.0"
+description = "Base Gymnasium environment for multirgrid environments with location-based compact observation representations."
+authors = ["Mikihisa Yuasa <myuasa2@illinois.edu>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "compact_multigrid"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+gymnasium = ">=0.26"
+matplotlib = "^3.7.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
