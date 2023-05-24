@@ -1,16 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Any, NamedTuple, TypeVar
+from typing import Any, Final, NamedTuple, TypeVar, TypedDict
 
-import gymnasium as gym
-from gymnasium import spaces
+import numpy as np
+from numpy.typing import NDArray
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+import gymnasium as gym
+from gymnasium import spaces
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from compact_multigrid.typing import Metadata, RenderMode, Observation, Direction
 
+ObjectId = TypeVar("ObjectId", bound=dict[str, int] | TypedDict)
 Info = TypeVar("Info", bound=dict[str, Any])
 Field = TypeVar("Field", bound=NamedTuple)
 
@@ -24,7 +27,13 @@ class BaseMultigrid(gym.Env, ABC):
         "render_modes": ["human", "rgb_array", "ansi", "ascii"],
     }
 
-    def __init__(self, num_max_steps: int, render_mode: RenderMode = None) -> None:
+    def __init__(
+        self,
+        map_path: str | None,
+        num_max_steps: int,
+        object_id: ObjectId,
+        render_mode: RenderMode = None,
+    ) -> None:
         """
         Initialize a new multigrid environment.
 
@@ -42,14 +51,31 @@ class BaseMultigrid(gym.Env, ABC):
         """
         super().__init__()
 
-        self._num_max_steps = num_max_steps
+        self._object_id: Final[ObjectId] = object_id
+        self._num_max_steps: Final[int] = num_max_steps
+        self._map_path: Final[str | None] = map_path
+
+        self._field_map: ArrayLike = self._load_field_map(map_path)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self._render_mode: RenderMode = render_mode
+        self._render_mode: Final[RenderMode] = render_mode
 
-        observation_space = self._define_observation_space()
-        actions: tuple[Direction, ...] = self._define_actions()
-        action_space = spaces.Discrete(len(actions))
+        self.observation_space: Final[spaces.Space] = self._define_observation_space()
+
+        actions: Final[tuple[Direction, ...]] = self._define_actions()
+        self.action_space: Final = spaces.Discrete(len(actions))
+
+    @abstractmethod
+    def _load_field_map(self, map_path: str | None) -> NDArray[np.integer]:
+        """
+        Abstract method to load the field map.
+
+        Returns
+        -------
+        field_map : ArrayLike
+            the field map
+        """
+        ...
 
     @abstractmethod
     def _define_observation_space(self) -> spaces.Space:
@@ -186,6 +212,18 @@ class BaseMultigrid(gym.Env, ABC):
 
         return image
 
+    @abstractmethod
+    def _define_field(self) -> Field:
+        """
+        Abstract method to get the current game field of the environment.
+
+        Returns
+        -------
+        field : Field
+            the current game field of the environment
+        """
+        ...
+
     def _get_image(self, fig: Figure) -> ArrayLike | list[ArrayLike] | None:
         """
         Get the image of the rendered environment.
@@ -253,17 +291,5 @@ class BaseMultigrid(gym.Env, ABC):
         -------
         map_shape : tuple[int, int]
             the shape of the map (rwos, cols)
-        """
-        ...
-
-    @abstractmethod
-    def _get_field(self) -> Field:
-        """
-        Abstract method to get the current game field of the environment.
-
-        Returns
-        -------
-        field : Field
-            the current game field of the environment
         """
         ...

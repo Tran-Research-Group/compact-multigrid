@@ -42,6 +42,12 @@ class Ctf1v1(BaseCtf):
 
         self._enemy_policy_mode = enemy_policy_mode
 
+        self._randomness: float = randomness
+        self._capture_reward: float = capture_reward
+        self._battle_reward_alpha: float = battle_reward_alpha
+        self._obstacle_penalty_beta: float | None = obstacle_penalty_beta
+        self._step_penalty_gamma: float = step_penalty_gamma
+
     def _define_observation_space(self) -> spaces.Dict:
         observation = spaces.Dict(
             {

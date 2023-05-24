@@ -1,4 +1,4 @@
-from typing import Final, NamedTuple
+from typing import Final, NamedTuple, TypeGuard, TypedDict
 
 import jax.numpy as jnp
 from jax.typing import ArrayLike
@@ -12,7 +12,7 @@ from compact_multigrid.typing.field import Location
 from compact_multigrid.utils import tuples2locs
 
 
-class ObjectId(NamedTuple):
+class ObjectId(TypedDict):
     blue_background: int
     red_background: int
     blue_ugv: int
@@ -36,7 +36,17 @@ class Field(NamedTuple):
     obstacle: list[Location]
 
 
-default_object_id = ObjectId(0, 1, 2, 3, 4, 5, 6, 7, 8)
+default_object_id: ObjectId = {
+    "blue_background": 0,
+    "red_background": 1,
+    "blue_ugv": 2,
+    "blue_uav": 3,
+    "red_ugv": 4,
+    "red_uav": 5,
+    "blue_flag": 6,
+    "red_flag": 7,
+    "obstacle": 8,
+}
 
 
 class BaseCtf(BaseMultigrid):
@@ -62,28 +72,25 @@ class BaseCtf(BaseMultigrid):
         object_id: ObjectId = default_object_id,
         render_mode: RenderMode = None,
     ) -> None:
-        super().__init__(num_max_steps, render_mode)
+        super().__init__(map_path, num_max_steps, object_id, render_mode)
 
-        self._map_path: Final[str] = map_path
-        self._object_id: Final[ObjectId] = object_id
-
-        self._field_map: NDArray[np.integer] = np.loadtxt(self._map_path)
+        self._field_map: NDArray[np.integer] = self._load_field_map(map_path)
 
         obstacle: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id.obstacle)))  # type: ignore
+            list(zip(*np.where(self._field_map == self._object_id["obstacle"])))  # type: ignore
         )
         blue_flag: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id.blue_flag)))  # type: ignore
+            list(zip(*np.where(self._field_map == self._object_id["blue_flag"])))  # type: ignore
         )
 
         red_flag: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id.red_flag)))  # type: ignore
+            list(zip(*np.where(self._field_map == self._object_id["red_flag"])))  # type: ignore
         )
         blue_background: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id.blue_background)))  # type: ignore
+            list(zip(*np.where(self._field_map == self._object_id["blue_background"])))  # type: ignore
         ) + [blue_flag]
         red_background: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id.red_background)))  # type: ignore
+            list(zip(*np.where(self._field_map == self._object_id["red_background"])))  # type: ignore
         ) + [red_flag]
 
         self.field = Field(
@@ -97,6 +104,16 @@ class BaseCtf(BaseMultigrid):
             red_flag,
             obstacle,
         )
+
+    def _load_field_map(self, map_path: str) -> NDArray[np.integer]:
+        field_map: NDArray
+        match map_path:
+            case str():
+                field_map = np.loadtxt(map_path, dtype=np.integer)
+            case _:
+                raise ValueError("[compact-multigrid] Invalid map path.")
+
+        return field_map
 
     def _define_actions(self) -> tuple[Direction, ...]:
         """
