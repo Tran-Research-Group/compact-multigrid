@@ -1,17 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar
+from typing import Any, Final, NamedTuple, TypeVar, TypedDict, Union
 
-import gymnasium as gym
-from gymnasium import spaces
+import numpy as np
+from numpy.typing import NDArray
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+import gymnasium as gym
+from gymnasium import spaces
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from compact_multigrid.typing import Metadata, RenderMode, Observation, Direction
 
+ObjectId = TypeVar("ObjectId", bound=Union[dict[str, int], TypedDict])
 Info = TypeVar("Info", bound=dict[str, Any])
+Field = TypeVar("Field", bound=NamedTuple)
 
 
 class BaseMultigrid(gym.Env, ABC):
@@ -23,7 +27,13 @@ class BaseMultigrid(gym.Env, ABC):
         "render_modes": ["human", "rgb_array", "ansi", "ascii"],
     }
 
-    def __init__(self, num_max_steps: int, render_mode: RenderMode = None) -> None:
+    def __init__(
+        self,
+        map_path: str | None,
+        num_max_steps: int,
+        object_id: ObjectId,
+        render_mode: RenderMode = None,
+    ) -> None:
         """
         Initialize a new multigrid environment.
 
@@ -41,14 +51,32 @@ class BaseMultigrid(gym.Env, ABC):
         """
         super().__init__()
 
-        self._num_max_steps = num_max_steps
+        self._object_id: Final[ObjectId] = object_id
+        self._num_max_steps: Final[int] = num_max_steps
+        self._map_path: Final[str | None] = map_path
+
+        self._field_map: ArrayLike = self._load_field_map(map_path)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self._render_mode: RenderMode = render_mode
+        self._render_mode: Final[RenderMode] = render_mode
 
-        observation_space = self._define_observation_space()
-        actions: list[Direction] = self._define_actions()
-        action_space = spaces.Discrete(len(actions))
+        self.field = self._define_field()
+        self.observation_space: Final[spaces.Space] = self._define_observation_space()
+
+        self.actions: Final[tuple[Direction, ...]] = self._define_actions()
+        self.action_space: Final = spaces.Discrete(len(self.actions))
+
+    @abstractmethod
+    def _load_field_map(self, map_path: str | None) -> NDArray[np.integer]:
+        """
+        Abstract method to load the field map.
+
+        Returns
+        -------
+        field_map : ArrayLike
+            the field map
+        """
+        ...
 
     @abstractmethod
     def _define_observation_space(self) -> spaces.Space:
@@ -62,7 +90,7 @@ class BaseMultigrid(gym.Env, ABC):
         ...
 
     @abstractmethod
-    def _define_actions(self) -> list[Direction]:
+    def _define_actions(self) -> tuple[Direction, ...]:
         """
         Abstract method to define the actions of the environment.
 
@@ -70,6 +98,18 @@ class BaseMultigrid(gym.Env, ABC):
         -------
         actions : list[Direction]
             a list of actions to certain directions
+        """
+        ...
+
+    @abstractmethod
+    def _define_field(self) -> Field:
+        """
+        Abstract method to define the field of the environment.
+
+        Returns
+        -------
+        field : Field
+            the field of the environment
         """
         ...
 
@@ -98,9 +138,7 @@ class BaseMultigrid(gym.Env, ABC):
         ...
 
     @abstractmethod
-    def reset(
-        self, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[Observation, Info]:
+    def reset(self, seed: int | None = None) -> tuple[Observation, Info]:
         """
         Abstract method to reset the environment.
 
@@ -118,22 +156,12 @@ class BaseMultigrid(gym.Env, ABC):
         info : Info
             additional information
         """
-        super().reset(seed=seed, options=options)
-
-        self._step_count: int = 0
-        self._episodic_reward: float = 0.0
-
-        self._reset_field()
-
-        obs = self._get_obs()
-        info = self._get_info()
-
-        return obs, info
+        super().reset(seed=seed)
 
     @abstractmethod
-    def _reset_field(self) -> None:
+    def _update_field(self) -> None:
         """
-        Reset the game field to its initial state.
+        Update the game field to its initial state.
         """
         ...
 
@@ -162,6 +190,7 @@ class BaseMultigrid(gym.Env, ABC):
         info : Info
             additional information
         """
+        self._step_count += 1
         ...
 
     @abstractmethod
@@ -176,15 +205,50 @@ class BaseMultigrid(gym.Env, ABC):
         """
         fig, ax = self._render_grid()
 
+        field: Field = self._get_field()
+
         fig.canvas.draw()
 
+        image: ArrayLike | list[ArrayLike] | None = self._get_image(fig)
+
+        return image
+
+    @abstractmethod
+    def _get_field(self) -> Field:
+        """
+        Abstract method to get the current game field of the environment.
+
+        Returns
+        -------
+        field : Field
+            the game field of the environment
+        """
+        ...
+
+    def _get_image(
+        self, fig: Figure, block: bool = False
+    ) -> ArrayLike | list[ArrayLike] | None:
+        """
+        Get the image of the rendered environment.
+
+        Parameters
+        ----------
+        fig : Figure
+            the figure of the plot
+
+        Returns
+        -------
+        image: ArrayLike | list[ArrayLike] | None
+            the rendered image. If the render mode is "human", the plot is shown in GUI and image is None. If the render mode is "rgb_array", the image is returned as a numpy array. The render modes is "ansi" or "ascii" are not implemented in the base env.
+        """
         image: ArrayLike | list[ArrayLike] | None
 
         match self._render_mode:
             case "human":
-                plt.show(block=False)
+                plt.show(block=block)
                 image = None
             case "rgb_array":
+                fig.canvas.draw()
                 image = jnp.array(fig.canvas.renderer.buffer_rgba())  # type: ignore
             case _:
                 image = None
