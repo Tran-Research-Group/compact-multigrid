@@ -12,6 +12,22 @@ def tuples2locs(tuples: list[tuple[int, int]]) -> list[Location]:
     return locs
 
 
+def manhattan_distance(p1: Location, p2: Location) -> int:
+    """
+    Compute a Manhattan distance of two points
+
+    Parameters:
+    p1 (Location): a location
+    p2 (Location): another location
+
+    Returns:
+    distance (int): Manhattan distance of the two points
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    return abs(x1 - x2) + abs(y1 - y2)
+
+
 @jit
 def distance_points_jax(p1: Location, p2: Location) -> float:
     """Calculate the squared distance of two points"""
