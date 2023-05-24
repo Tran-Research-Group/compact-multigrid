@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Final, NamedTuple, TypeVar, TypedDict
+from typing import Any, Final, NamedTuple, TypeVar, TypedDict, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 
 from compact_multigrid.typing import Metadata, RenderMode, Observation, Direction
 
-ObjectId = TypeVar("ObjectId", bound=dict[str, int] | TypedDict)
+ObjectId = TypeVar("ObjectId", bound=Union[dict[str, int], TypedDict])
 Info = TypeVar("Info", bound=dict[str, Any])
 Field = TypeVar("Field", bound=NamedTuple)
 
