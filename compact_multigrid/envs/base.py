@@ -60,10 +60,11 @@ class BaseMultigrid(gym.Env, ABC):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self._render_mode: Final[RenderMode] = render_mode
 
+        self.field = self._define_field()
         self.observation_space: Final[spaces.Space] = self._define_observation_space()
 
-        actions: Final[tuple[Direction, ...]] = self._define_actions()
-        self.action_space: Final = spaces.Discrete(len(actions))
+        self.actions: Final[tuple[Direction, ...]] = self._define_actions()
+        self.action_space: Final = spaces.Discrete(len(self.actions))
 
     @abstractmethod
     def _load_field_map(self, map_path: str | None) -> NDArray[np.integer]:
@@ -101,6 +102,18 @@ class BaseMultigrid(gym.Env, ABC):
         ...
 
     @abstractmethod
+    def _define_field(self) -> Field:
+        """
+        Abstract method to define the field of the environment.
+
+        Returns
+        -------
+        field : Field
+            the field of the environment
+        """
+        ...
+
+    @abstractmethod
     def _get_obs(self) -> Observation:
         """
         Abstract method to get the current observation of the environment.
@@ -125,9 +138,7 @@ class BaseMultigrid(gym.Env, ABC):
         ...
 
     @abstractmethod
-    def reset(
-        self, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[Observation, Info]:
+    def reset(self, seed: int | None = None) -> tuple[Observation, Info]:
         """
         Abstract method to reset the environment.
 
@@ -145,22 +156,12 @@ class BaseMultigrid(gym.Env, ABC):
         info : Info
             additional information
         """
-        super().reset(seed=seed, options=options)
-
-        self._step_count: int = 0
-        self._episodic_reward: float = 0.0
-
-        self._reset_field()
-
-        obs = self._get_obs()
-        info = self._get_info()
-
-        return obs, info
+        super().reset(seed=seed)
 
     @abstractmethod
-    def _reset_field(self) -> None:
+    def _update_field(self) -> None:
         """
-        Reset the game field to its initial state.
+        Update the game field to its initial state.
         """
         ...
 
@@ -213,18 +214,20 @@ class BaseMultigrid(gym.Env, ABC):
         return image
 
     @abstractmethod
-    def _define_field(self) -> Field:
+    def _get_field(self) -> Field:
         """
         Abstract method to get the current game field of the environment.
 
         Returns
         -------
         field : Field
-            the current game field of the environment
+            the game field of the environment
         """
         ...
 
-    def _get_image(self, fig: Figure) -> ArrayLike | list[ArrayLike] | None:
+    def _get_image(
+        self, fig: Figure, block: bool = False
+    ) -> ArrayLike | list[ArrayLike] | None:
         """
         Get the image of the rendered environment.
 
@@ -242,7 +245,7 @@ class BaseMultigrid(gym.Env, ABC):
 
         match self._render_mode:
             case "human":
-                plt.show(block=False)
+                plt.show(block=block)
                 image = None
             case "rgb_array":
                 fig.canvas.draw()

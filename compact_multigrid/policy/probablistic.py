@@ -4,7 +4,7 @@ from typing import Literal
 import numpy as np
 from numpy import ndarray
 
-from compact_multigrid.envs.ctf.base import Field
+from compact_multigrid.envs.ctf.base_ctf import Field
 from compact_multigrid.typing.field import Location
 
 

@@ -2,9 +2,11 @@ from typing import Final, NamedTuple, TypeGuard, TypedDict
 
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 from numpy.typing import NDArray
+import seaborn as sns
 
 from compact_multigrid import BaseMultigrid
 from compact_multigrid.typing import Direction, RenderMode
@@ -76,6 +78,17 @@ class BaseCtf(BaseMultigrid):
 
         self._field_map: NDArray[np.integer] = self._load_field_map(map_path)
 
+    def _load_field_map(self, map_path: str) -> NDArray[np.integer]:
+        field_map: NDArray
+        match map_path:
+            case str():
+                field_map = np.loadtxt(map_path, dtype=np.integer)
+            case _:
+                raise ValueError("[compact-multigrid] Invalid map path.")
+
+        return field_map
+
+    def _define_field(self) -> Field:
         obstacle: Final[list[Location]] = tuples2locs(
             list(zip(*np.where(self._field_map == self._object_id["obstacle"])))  # type: ignore
         )
@@ -86,14 +99,28 @@ class BaseCtf(BaseMultigrid):
         red_flag: Final[list[Location]] = tuples2locs(
             list(zip(*np.where(self._field_map == self._object_id["red_flag"])))  # type: ignore
         )
-        blue_background: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id["blue_background"])))  # type: ignore
-        ) + [blue_flag]
-        red_background: Final[list[Location]] = tuples2locs(
-            list(zip(*np.where(self._field_map == self._object_id["red_background"])))  # type: ignore
-        ) + [red_flag]
+        blue_agent: Final[Location] = tuples2locs(
+            list(zip(*np.where(self._field_map == self._object_id["blue_ugv"])))  # type: ignore
+        )[0]
+        red_agent: Final[Location] = tuples2locs(
+            list(zip(*np.where(self._field_map == self._object_id["red_ugv"])))  # type: ignore
+        )[0]
+        blue_background: Final[list[Location]] = (
+            tuples2locs(
+                list(zip(*np.where(self._field_map == self._object_id["blue_background"])))  # type: ignore
+            )
+            + blue_flag
+            + [blue_agent]
+        )
+        red_background: Final[list[Location]] = (
+            tuples2locs(
+                list(zip(*np.where(self._field_map == self._object_id["red_background"])))  # type: ignore
+            )
+            + red_flag
+            + [red_agent]
+        )
 
-        self.field = Field(
+        field = Field(
             blue_background,
             red_background,
             None,
@@ -105,15 +132,7 @@ class BaseCtf(BaseMultigrid):
             obstacle,
         )
 
-    def _load_field_map(self, map_path: str) -> NDArray[np.integer]:
-        field_map: NDArray
-        match map_path:
-            case str():
-                field_map = np.loadtxt(map_path, dtype=np.integer)
-            case _:
-                raise ValueError("[compact-multigrid] Invalid map path.")
-
-        return field_map
+        return field
 
     def _define_actions(self) -> tuple[Direction, ...]:
         """
@@ -134,9 +153,20 @@ class BaseCtf(BaseMultigrid):
     def _get_map_shape(self) -> tuple[int, int]:
         return self._field_map.shape
 
+    def reset(
+        self,
+        seed: int | None = None,
+    ) -> None:
+        super().reset(seed=seed)
+        self._step_count: int = 0
+        self._episodic_reward: float = 0
+
     def render(
-        self, flag_markersize=30, agent_markersize=25
+        self, flag_markersize=26, agent_markersize=25, block=False
     ) -> ArrayLike | list[ArrayLike] | None:
+        sns.reset_defaults()
+        plt.rcParams["font.family"] = "Times New Roman"
+
         fig, ax = self._render_grid()
 
         (
@@ -177,14 +207,14 @@ class BaseCtf(BaseMultigrid):
                 rf.col,
                 rf.row,
                 marker=">",
-                color="mediumblue",
+                color="firebrick",
                 markersize=flag_markersize,
             )
 
         match blue_ugv:
             case None:
                 pass
-            case Location(col, row):
+            case Location(row, col):
                 ax.plot(
                     col,
                     row,
@@ -196,7 +226,7 @@ class BaseCtf(BaseMultigrid):
         match blue_uav:
             case None:
                 pass
-            case Location(col, row):
+            case Location(row, col):
                 ax.plot(
                     col,
                     row,
@@ -208,7 +238,7 @@ class BaseCtf(BaseMultigrid):
         match red_ugv:
             case None:
                 pass
-            case Location(col, row):
+            case Location(row, col):
                 ax.plot(
                     col,
                     row,
@@ -220,7 +250,7 @@ class BaseCtf(BaseMultigrid):
         match red_uav:
             case None:
                 pass
-            case Location(col, row):
+            case Location(row, col):
                 ax.plot(
                     col,
                     row,
@@ -229,7 +259,7 @@ class BaseCtf(BaseMultigrid):
                     markersize=agent_markersize,
                 )
 
-        image = self._get_image(fig)
+        image = self._get_image(fig, block=block)
 
         return image
 
